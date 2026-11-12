@@ -1,0 +1,32 @@
+[
+  {
+    "nome": "Echo Dot 5ª geração — confirme cor e modelo no anúncio",
+    "url": "https://www.amazon.com.br/dp/B09B8VGCR8",
+    "preco_alvo": 250.00,
+    "preco_revenda_estimado": 380.00
+  },
+  {
+    "nome": "Echo Pop — confirme cor e modelo no anúncio",
+    "url": "https://www.amazon.com.br/dp/B09WXVH7WK",
+    "preco_alvo": 180.00,
+    "preco_revenda_estimado": 280.00
+  },
+  {
+    "nome": "SSD Kingston A400 480 GB SATA",
+    "url": "https://www.amazon.com.br/dp/B01N5IB20Q",
+    "preco_alvo": 160.00,
+    "preco_revenda_estimado": 240.00
+  },
+  {
+    "nome": "Mouse Logitech G203 LIGHTSYNC preto",
+    "url": "https://www.kabum.com.br/produto/128182/mouse-gamer-logitech-g203-lightsync-rgb-6-botoes-8000-dpi-preto-910-005793",
+    "preco_alvo": 85.00,
+    "preco_revenda_estimado": 140.00
+  },
+  {
+    "nome": "Mouse Logitech M90 USB preto",
+    "url": "https://www.amazon.com.br/dp/B00F496M1G",
+    "preco_alvo": 25.00,
+    "preco_revenda_estimado": 45.00
+  }
+]
