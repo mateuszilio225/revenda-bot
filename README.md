@@ -1,6 +1,32 @@
 # Bot gratuito de ofertas para revenda
 
-Monitor em Python 3.10+ para Linux (incluindo este ambiente na nuvem e WSL). Usa `curl_cffi` com impersonação TLS de Chrome e User-Agent correspondente, BeautifulSoup4 para HTML e `requests` para Telegram. Não usa APIs pagas. O computador precisa ficar ligado; não inclui hospedagem gratuita permanente.
+Monitor em Python 3.10+ para Windows e Linux (incluindo este ambiente na nuvem e WSL). Usa `curl_cffi` com impersonação TLS de Chrome e User-Agent correspondente, BeautifulSoup4 para HTML e `requests` para Telegram. Não usa APIs pagas. O computador precisa ficar ligado; não inclui hospedagem gratuita permanente.
+
+## Windows (Prompt de Comando / CMD)
+
+Abra o CMD na pasta extraída do projeto e execute:
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+python bot_arbitragem.py --once --dry-run
+```
+
+O bloqueio do histórico usa `msvcrt`, que já vem com o Python do Windows. **Não instale `fcntl` pelo pip**: esse módulo é utilizado apenas no Unix.
+
+Para definir as credenciais com entrada mascarada do token, abra o **PowerShell** na mesma pasta:
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN = [System.Net.NetworkCredential]::new('', (Read-Host 'Token do bot' -AsSecureString)).Password
+$env:TELEGRAM_CHAT_ID = Read-Host 'CHAT_ID'
+.\.venv\Scripts\python.exe bot_arbitragem.py --test-telegram
+.\.venv\Scripts\python.exe bot_arbitragem.py
+```
+
+As variáveis valem somente nessa sessão do PowerShell. Se já as configurou em outro terminal, execute por ele. O tutorial de `getUpdates` abaixo usa Bash; no Windows, use esse código Python em um arquivo local `obter_chat_id.py` e rode `.\.venv\Scripts\python.exe obter_chat_id.py` na sessão com o token configurado.
+
+Se uma versão anterior exibir **`Não foi possível continuar: not readable`**, pare o bot e atualize `bot_arbitragem.py` com a versão atual do GitHub. Preserve seu `produtos.json` e `historico.json`. O arquivo de lock agora é aberto para leitura e escrita, com backend próprio para cada sistema. Erros de permissão diferentes disso devem ser verificados pelo caminho/arquivo indicado.
 
 ## Instalação e execução
 

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from email.utils import parsedate_to_datetime
-import fcntl
+import errno
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -24,6 +24,13 @@ from urllib.parse import urlsplit
 from bs4 import BeautifulSoup
 from curl_cffi import requests as curl_requests
 import requests
+
+
+WINDOWS = os.name == "nt"
+if WINDOWS:
+    import msvcrt
+else:
+    import fcntl
 
 
 LOG = logging.getLogger("arbitragem")
@@ -263,17 +270,34 @@ def salvar_historico(caminho: Path, dados: dict):
 
 @contextmanager
 def instancia_unica(caminho: Path):
-    """Lock liberado pelo Linux ao sair, inclusive em caso de interrupção."""
+    """Bloqueio nativo do Windows ou Unix, liberado ao fechar o arquivo."""
     caminho.parent.mkdir(parents=True, exist_ok=True)
-    with caminho.open("a") as arquivo:
+    # Leitura + escrita evita 'not readable' em implementações de flock.
+    # Windows bloqueia uma região de bytes: reserve sempre o primeiro byte.
+    with caminho.open("a+b") as arquivo:
+        if WINDOWS:
+            arquivo.seek(0, os.SEEK_END)
+            if arquivo.tell() == 0:
+                arquivo.write(b"\0")
+                arquivo.flush()
+            arquivo.seek(0)
         try:
-            fcntl.flock(arquivo, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise ErroMonitor("Outro monitor já usa este histórico") from exc
+            if WINDOWS:
+                msvcrt.locking(arquivo.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(arquivo, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                raise ErroMonitor("Outro monitor já usa este histórico") from exc
+            raise
         try:
             yield
         finally:
-            fcntl.flock(arquivo, fcntl.LOCK_UN)
+            if WINDOWS:
+                arquivo.seek(0)
+                msvcrt.locking(arquivo.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(arquivo, fcntl.LOCK_UN)
 
 
 def calcular_lucro(preco, revenda):

@@ -1,10 +1,14 @@
 import argparse
+import errno
 from decimal import Decimal as D
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import tempfile
 import threading
+import subprocess
+import sys
 import unittest
 from unittest.mock import Mock, patch
 
@@ -123,6 +127,67 @@ class MonitorTests(unittest.TestCase):
         self.assertIn("R$ 270,00", mensagem)
         self.assertIn("22,50%", mensagem)
         self.assertIn("[Abrir produto](https://", mensagem)
+
+    def test_lock_em_outro_processo_e_liberacao_apos_erro(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            lock = Path(pasta) / "lock"
+            codigo = (
+                "from pathlib import Path; import bot_arbitragem as b; import sys\n"
+                "try:\n"
+                "    with b.instancia_unica(Path(sys.argv[1])): pass\n"
+                "except b.ErroMonitor:\n"
+                "    sys.exit(3)\n"
+            )
+            comando = [sys.executable, "-c", codigo, str(lock)]
+            raiz = Path(bot.__file__).parent
+            with bot.instancia_unica(lock):
+                self.assertEqual(subprocess.run(comando, cwd=raiz, capture_output=True).returncode, 3)
+            self.assertEqual(subprocess.run(comando, cwd=raiz, capture_output=True).returncode, 0)
+            with self.assertRaisesRegex(RuntimeError, "interrompido"):
+                with bot.instancia_unica(lock):
+                    raise RuntimeError("interrompido")
+            self.assertEqual(subprocess.run(comando, cwd=raiz, capture_output=True).returncode, 0)
+
+    def test_backend_windows_bloqueia_e_libera_o_mesmo_byte(self):
+        chamadas = []
+        backend = Mock(LK_NBLCK=1, LK_UNLCK=0)
+
+        def locking(fd, modo, tamanho):
+            self.assertEqual(os.lseek(fd, 0, os.SEEK_CUR), 0)
+            self.assertEqual(os.read(fd, 1), b"\0")
+            chamadas.append((modo, tamanho))
+
+        backend.locking.side_effect = locking
+        with tempfile.TemporaryDirectory() as pasta, patch.object(bot, "WINDOWS", True), patch.object(bot, "msvcrt", backend, create=True):
+            caminho = Path(pasta) / "lock"
+            for _ in range(2):
+                with bot.instancia_unica(caminho):
+                    pass
+            self.assertEqual(caminho.read_bytes(), b"\0")
+        self.assertEqual(chamadas, [(1, 1), (0, 1), (1, 1), (0, 1)])
+
+    def test_backend_windows_nao_desbloqueia_se_nao_adquiriu(self):
+        backend = Mock()
+        backend.locking.side_effect = OSError(errno.EACCES, "ocupado")
+        with tempfile.TemporaryDirectory() as pasta, patch.object(bot, "WINDOWS", True), patch.object(bot, "msvcrt", backend, create=True):
+            with self.assertRaises(bot.ErroMonitor):
+                with bot.instancia_unica(Path(pasta) / "lock"):
+                    self.fail("Não deve entrar sem adquirir lock")
+        backend.locking.assert_called_once()
+
+    def test_lock_aberto_para_leitura_e_escrita(self):
+        if bot.WINDOWS:
+            self.skipTest("flock é o backend Unix")
+        original = bot.fcntl.flock
+
+        def verificar(arquivo, flags):
+            self.assertTrue(arquivo.readable())
+            self.assertTrue(arquivo.writable())
+            return original(arquivo, flags)
+
+        with tempfile.TemporaryDirectory() as pasta, patch.object(bot.fcntl, "flock", side_effect=verificar):
+            with bot.instancia_unica(Path(pasta) / "lock"):
+                pass
 
     def test_telegram_sem_vazar_token(self):
         telegram = bot.Telegram("TOKEN_SECRETO", "123")
